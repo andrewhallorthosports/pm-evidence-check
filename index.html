@@ -436,7 +436,7 @@ const CONTENT_ITEMS = [
 ];
 
 const KEY = "pm_evidence_check_v2";
-let store = { name:"", date:"", recs:{} };
+let store = { name:"", date:"", recs:{}, events:[] };
 
 function k(cid, ref){ return cid + "::" + ref; }
 
@@ -599,7 +599,7 @@ function restore(){
   if(!raw) return;
   try{
     const s = JSON.parse(raw);
-    store = s; store.recs = s.recs || {};
+    store = s; store.recs = s.recs || {}; store.events = s.events || [];
     if(s.name) document.getElementById("rev-name").value = s.name;
     if(s.date) document.getElementById("rev-date").value = s.date;
     Object.keys(store.recs).forEach(key=>{
@@ -655,7 +655,8 @@ function exportLog(){
     reviewer:{ name:store.name, date:store.date },
     generated:new Date().toISOString(),
     completion:{ reviewed:done, total:total, complete: done===total },
-    claims:claims, content_decision_items:content
+    claims:claims, content_decision_items:content,
+    activity_events:(store.events||[])
   };
   const stamp = new Date().toISOString().slice(0,10).replace(/-/g,"");
   const blob = new Blob([JSON.stringify(log,null,2)],{type:"application/json"});
@@ -671,7 +672,7 @@ function exportLog(){
 function clearAll(){
   if(!confirm("Clear all your answers in this browser? This cannot be undone.")) return;
   try{ localStorage.removeItem(KEY); }catch(e){}
-  store = { name:"", date:"", recs:{} };
+  store = { name:"", date:"", recs:{}, events:[] };
   location.reload();
 }
 
@@ -690,6 +691,139 @@ document.getElementById("rev-date").addEventListener("input", saveSoon);
 build();
 restore();
 updateProgress();
+
+/* ---- Reviewer activity logging (Supabase, insert-only) ------------------ */
+(function(){
+  var SB_URL  = "https://zlwpywqxmvdxnyktnoia.supabase.co";
+  var SB_KEY  = "sb_publishable_CE2I-Kf55SRDCfdgH3IZlA_g-LuSScM";
+  var ENDPOINT = SB_URL + "/rest/v1/pm_evidence_events";
+
+  // stable per-browser session id
+  var SID_KEY = "pm_evidence_check_sid", sid;
+  try{ sid = localStorage.getItem(SID_KEY); }catch(e){}
+  if(!sid){
+    sid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : "s-" + new Date().getTime() + "-" + Math.random().toString(36).slice(2);
+    try{ localStorage.setItem(SID_KEY, sid); }catch(e){}
+  }
+  var t0 = new Date().getTime();
+
+  function post(row){
+    try{
+      fetch(ENDPOINT, {
+        method:"POST",
+        headers:{ "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY,
+                  "Content-Type":"application/json", "Prefer":"return=minimal" },
+        body:JSON.stringify(row), keepalive:true, mode:"cors", credentials:"omit"
+      }).catch(function(){});
+    }catch(e){}
+  }
+
+  function splitKey(key){
+    var i = (key||"").indexOf("::");
+    return i>=0 ? { claim:key.slice(0,i), ref:key.slice(i+2) } : { claim:null, ref:(key||null) };
+  }
+
+  function track(type, opts){
+    opts = opts || {};
+    var row = {
+      session_id:sid,
+      reviewer_name:(store && store.name) || null,
+      reviewer_date:(store && store.date) || null,
+      event_type:type,
+      claim:opts.claim || null,
+      paper_ref:opts.ref || null,
+      detail:opts.detail || null,
+      page_path:location.pathname,
+      user_agent:navigator.userAgent
+    };
+    try{
+      if(store){
+        store.events = store.events || [];
+        store.events.push({ t:new Date().toISOString(), type:type,
+          claim:row.claim, ref:row.paper_ref, detail:row.detail });
+        if(store.events.length > 3000) store.events.splice(0, store.events.length - 3000);
+        try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){}
+      }
+    }catch(e){}
+    post(row);
+  }
+  window.pmTrack = track;
+
+  // 1) expand / collapse
+  var _toggle = window.toggle;
+  window.toggle = function(key){
+    _toggle(key);
+    var w = document.getElementById("wrap-"+key);
+    var s = splitKey(key);
+    track(w && w.classList.contains("open") ? "expand" : "collapse", { claim:s.claim, ref:s.ref });
+  };
+
+  // 2) rating / judgement changes
+  var _pick = window.pick;
+  window.pick = function(key,q,val){
+    _pick(key,q,val);
+    var s = splitKey(key);
+    track("rating", { claim:s.claim, ref:s.ref, detail:{ field:q, value:val } });
+  };
+
+  // 3) comments & rating-notes (on blur / change)
+  document.addEventListener("change", function(e){
+    var el = e.target; if(!el || !el.matches) return;
+    if(el.matches("textarea[data-c]")){
+      var s = splitKey(el.getAttribute("data-c"));
+      track("comment", { claim:s.claim, ref:s.ref,
+        detail:{ length:el.value.trim().length, text:el.value.trim().slice(0,2000) } });
+    } else if(el.matches("input[data-ro]")){
+      var s2 = splitKey(el.getAttribute("data-ro"));
+      track("rating_note", { claim:s2.claim, ref:s2.ref, detail:{ text:el.value.trim().slice(0,500) } });
+    }
+  }, true);
+
+  // 4) journal source click-throughs (external links, new tab)
+  document.addEventListener("click", function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a[target="_blank"]') : null;
+    if(!a) return;
+    var href = a.getAttribute("href") || "";
+    if(!/^https?:/i.test(href)) return;
+    var wrap = a.closest ? a.closest(".paper") : null;
+    var key = wrap ? (wrap.id||"").replace(/^wrap-/, "") : "";
+    var s = key ? splitKey(key) : { claim:null, ref:null };
+    track("source_click", { claim:s.claim, ref:s.ref,
+      detail:{ url:href, label:(a.textContent||"").replace(/\s+/g," ").trim().slice(0,120) } });
+  }, true);
+
+  // 5) completion — fire once when every item is reviewed
+  var _completed = false;
+  function checkComplete(){
+    try{
+      var total = totalItems(), done = 0;
+      Object.keys(store.recs).forEach(function(kk){ if(store.recs[kk] && store.recs[kk].support) done++; });
+      if(!_completed && total>0 && done>=total){ _completed = true; track("completion", { detail:{ reviewed:done, total:total } }); }
+    }catch(e){}
+  }
+  var _up = window.updateProgress;
+  window.updateProgress = function(){ _up(); checkComplete(); };
+
+  // explicit export/finish action
+  var _export = window.exportLog;
+  if(_export){ window.exportLog = function(){ track("export", null); return _export.apply(this, arguments); }; }
+
+  // 6) session lifecycle
+  track("session_start", { detail:{ referrer:document.referrer||null, screen:(screen.width+"x"+screen.height) } });
+  document.addEventListener("visibilitychange", function(){
+    track(document.visibilityState==="hidden" ? "hidden" : "visible",
+      { detail:{ seconds:Math.round((new Date().getTime()-t0)/1000) } });
+  });
+  var _endSent = false;
+  window.addEventListener("pagehide", function(){
+    if(_endSent) return; _endSent = true;
+    var done = 0;
+    try{ Object.keys(store.recs).forEach(function(kk){ if(store.recs[kk] && store.recs[kk].support) done++; }); }catch(e){}
+    track("session_end", { detail:{ seconds:Math.round((new Date().getTime()-t0)/1000), reviewed:done, total:totalItems() } });
+  });
+  checkComplete();
+})();
 </script>
 </body>
 </html>
