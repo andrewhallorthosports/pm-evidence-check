@@ -27,6 +27,8 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Inject reviewer activity logging into deployed copy
+        run: python3 .github/scripts/inject_tracking.py
       - name: Upload root as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
