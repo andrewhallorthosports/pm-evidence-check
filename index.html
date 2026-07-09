@@ -153,6 +153,30 @@
   .btn-ghost{background:transparent; color:#cfe0e4; border:1px solid #3b5776}
   .btn-ghost:hover{color:#fff; border-color:#6f8aa6}
   .saved{font-size:12px; color:#8fd6cf; margin-left:8px}
+  /* --- one-claim-per-page review flow --- */
+  .claimpage{display:none}
+  .claimpage.active{display:block; animation:pfade .18s ease}
+  @keyframes pfade{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+  .pager{display:flex; align-items:center; gap:14px; margin:0 0 16px; justify-content:space-between}
+  .pager.bottom{margin:20px 0 96px}
+  .pbtn{font-family:inherit; font-size:14.5px; font-weight:600; padding:11px 20px; border-radius:8px;
+    border:1px solid var(--line); background:#fff; color:var(--navy); cursor:pointer}
+  .pbtn:hover:not(:disabled){background:var(--pale)}
+  .pbtn:disabled{opacity:.38; cursor:default}
+  .pbtn.next{background:var(--teal); color:#fff; border-color:var(--teal)}
+  .pbtn.next:hover:not(:disabled){background:#256b66}
+  .pager-mid{flex:1; text-align:center; min-width:0}
+  .pg-label{font-size:13px; color:var(--muted); font-weight:600; display:block; margin-bottom:6px}
+  .pg-label b{color:var(--navy)}
+  .pg-track{height:7px; background:#dce7ea; border-radius:5px; overflow:hidden; max-width:340px; margin:0 auto}
+  .pg-fill{height:100%; background:var(--teal); width:0%; transition:width .2s}
+  .savehint{background:var(--pale); border:1px solid var(--line); border-radius:8px; padding:11px 15px;
+    font-size:13px; color:var(--steel); margin:0 0 16px; line-height:1.5}
+  .resume-note{background:#eef7f5; border:1px solid #bfe0da; border-radius:8px; padding:12px 15px;
+    font-size:14px; color:var(--steel); margin:14px 0 4px}
+  .req{color:var(--no); font-weight:700}
+  .field-err{color:var(--no); font-size:13px; margin-top:6px; display:none}
+  .ok-msg{color:var(--yes); font-size:14px; font-weight:600; display:none; margin-top:8px}
 </style>
 </head>
 <body>
@@ -195,49 +219,69 @@
     <p>It is straightforward. For each paper, you answer two simple questions:</p>
     <ul class="steps">
       <li><span class="n">1</span><b>Does this paper actually support the statement?</b> Supports, partly supports, or does not support.</li>
-      <li><span class="n">2</span><b>Is it rated at the right level?</b> We have marked each paper as either a main source or a backing source. Does that look right?</li>
+      <li><span class="n">2</span><b>Is it rated at the right level?</b> Each paper is marked as a principal, secondary or backing source. Does that look right?</li>
     </ul>
     <div class="keydefs">
-      <div class="keydef"><b>Main source</b><br><span>The central evidence for the statement (shown as <b>lead</b> or <b>co</b>).</span></div>
-      <div class="keydef"><b>Backing source</b><br><span>Adds weight but is not the main evidence (shown as <b>supporter</b>).</span></div>
+      <div class="keydef"><b>Principal source</b><br><span>The central evidence for the statement.</span></div>
+      <div class="keydef"><b>Secondary source</b><br><span>Important supporting evidence, but not the lead paper.</span></div>
+      <div class="keydef"><b>Backing source</b><br><span>Adds weight but is not the main evidence.</span></div>
     </div>
-    <p style="margin-top:16px">Click any paper to open its full reference, a plain-English summary, and, for open-access papers, the abstract in full, with links to read the original online. There is a comment box on each; use it whenever something needs a note. Your answers save automatically in this browser as you go, so you can stop and come back. When you are finished, click <b>Export</b> at the bottom and send the file back to Andrew.</p>
+    <p style="margin-top:16px">Click any paper to open its full reference, a plain-English summary, and, for open-access papers, the abstract in full, with links to read the original online. There is a comment box on each; use it whenever something needs a note. You will see <b>one statement per page</b> &mdash; use <b>Back</b> and <b>Next</b> to move between them, and you can return to change any earlier answer at any time. Your answers <b>save automatically on this device</b>, so you can stop whenever you like and come back later to finish. When you are done, click <b>Export and finish</b> and send the file back to Andrew.</p>
     <div class="namebar">
       <div>
-        <label class="fl" for="rev-name">Your name</label>
+        <label class="fl" for="rev-name">Your name <span class="req">*</span></label>
         <input type="text" id="rev-name" value="Lewis Turmeau">
+        <div class="field-err" id="name-err">Please enter your name to begin.</div>
       </div>
       <div>
         <label class="fl" for="rev-date">Date</label>
-        <input type="text" id="rev-date" placeholder="e.g. 6 July 2026">
+        <input type="date" id="rev-date">
       </div>
     </div>
+    <div class="resume-note" id="resume-note" style="display:none"></div>
     <div class="begin">
-      <button class="btn btn-primary btn-lg" onclick="document.getElementById('claims').scrollIntoView({behavior:'smooth'})">Begin the review</button>
+      <button class="btn btn-primary btn-lg" id="begin-btn" onclick="beginReview()">Begin the review</button>
     </div>
   </div>
 
-  <div id="claims"></div>
+  <div id="review" style="display:none">
+    <div class="savehint">Your answers save automatically on this device &mdash; you can close this page and come back to finish later. Use <b>Back</b> and <b>Next</b> to move between statements; you can change any earlier answer.</div>
+    <div class="pager" id="pager-top">
+      <button type="button" class="pbtn prev" onclick="prevPage()">&#8592; Back</button>
+      <div class="pager-mid">
+        <span class="pg-label" id="pg-label"></span>
+        <div class="pg-track"><div class="pg-fill" id="pg-fill"></div></div>
+      </div>
+      <button type="button" class="pbtn next" onclick="nextPage()">Next &#8594;</button>
+    </div>
+    <div id="claims"></div>
+    <div class="pager bottom" id="pager-bottom">
+      <button type="button" class="pbtn prev" onclick="prevPage()">&#8592; Back</button>
+      <button type="button" class="pbtn" onclick="saveAndLater()">Save &amp; finish later</button>
+      <button type="button" class="pbtn next" onclick="nextPage()">Next &#8594;</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="contact">
   <div class="modal-box">
     <h3>Contact the investigators</h3>
-    <p class="msub">Your message goes to Dr Andrew J Hall. Please give a valid email address so we can reply.</p>
+    <p class="msub">Your message goes to the investigators. Please give a valid email address so we can reply.</p>
     <label for="c-email">Your email address</label>
     <input type="email" id="c-email" placeholder="you@example.com" oninput="clearErr()">
     <div class="err" id="c-email-err">Please enter a valid email address.</div>
     <label for="c-msg">Your message</label>
     <textarea id="c-msg" placeholder="Type your query here" oninput="clearErr()"></textarea>
     <div class="err" id="c-msg-err">Please enter a message.</div>
+    <div class="ok-msg" id="c-ok">Thank you &mdash; your message has been sent.</div>
     <div class="modal-actions">
       <button class="btn btn-ghost" style="color:var(--muted);border:1px solid var(--line)" onclick="closeContact()">Cancel</button>
-      <button class="btn btn-primary" onclick="sendContact()">Open email to send</button>
+      <button class="btn btn-primary" id="c-send" onclick="sendContact()">Send message</button>
     </div>
   </div>
 </div>
 
-<div class="bar">
+<div class="bar" id="bar" style="display:none">
   <div class="prog">Reviewed <b id="done">0</b> of <span id="total">0</span><span class="saved" id="saved"></span>
     <div class="track"><div class="fill" id="fill"></div></div>
   </div>
@@ -250,6 +294,8 @@
 <script>
 const ACTIVITY_NAME = "Performance Medicine 2 (PM Conceptual Architecture Design): Second Reviewer";
 const INVESTIGATOR_EMAIL = "ajh52@st-andrews.ac.uk";
+const SB_URL = "https://zlwpywqxmvdxnyktnoia.supabase.co";
+const SB_KEY = "sb_publishable_CE2I-Kf55SRDCfdgH3IZlA_g-LuSScM";
 const DOI = d => "https://doi.org/" + d;
 
 function openContact(){ document.getElementById("contact").classList.add("show"); }
@@ -264,11 +310,31 @@ function sendContact(){
   if(!ok){ document.getElementById("c-email-err").style.display="block"; bad=true; }
   if(!msg){ document.getElementById("c-msg-err").style.display="block"; bad=true; }
   if(bad) return;
-  const subject = "Query Re: " + ACTIVITY_NAME;
-  const body = "From: " + email + "\n\n" + msg + "\n\n(Sent via the Performance Medicine Evidence Check page)";
-  window.location.href = "mailto:" + INVESTIGATOR_EMAIL +
-    "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
-  closeContact();
+  var nm = (typeof store!=="undefined" && store.name) ? store.name
+           : ((document.getElementById("rev-name")||{}).value || "").trim() || null;
+  var payload = { reviewer_name:nm, from_email:email, message:msg,
+    activity:ACTIVITY_NAME, page_path:location.pathname, user_agent:navigator.userAgent };
+  var btn = document.getElementById("c-send");
+  if(btn){ btn.disabled=true; btn.textContent="Sending…"; }
+  fetch(SB_URL + "/rest/v1/pm_contact_messages", {
+    method:"POST",
+    headers:{ "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY,
+              "Content-Type":"application/json", "Prefer":"return=minimal" },
+    body:JSON.stringify(payload)
+  }).then(function(r){
+    if(!r.ok) throw new Error("status "+r.status);
+    document.getElementById("c-ok").style.display="block";
+    document.getElementById("c-email").value=""; document.getElementById("c-msg").value="";
+    if(btn) btn.textContent="Sent";
+    if(window.pmTrack) pmTrack("contact_sent", { detail:{} });
+    setTimeout(closeContact, 1400);
+    setTimeout(function(){ document.getElementById("c-ok").style.display="none";
+      if(btn){ btn.disabled=false; btn.textContent="Send message"; } }, 1800);
+  }).catch(function(){
+    if(btn){ btn.disabled=false; btn.textContent="Send message"; }
+    var er = document.getElementById("c-msg-err");
+    if(er){ er.textContent="Sorry — could not send just now. Please try again, or email " + INVESTIGATOR_EMAIL + " directly."; er.style.display="block"; }
+  });
 }
 document.getElementById("contact").addEventListener("click", e=>{ if(e.target.id==="contact") closeContact(); });
 
@@ -436,7 +502,7 @@ const CONTENT_ITEMS = [
 ];
 
 const KEY = "pm_evidence_check_v2";
-let store = { name:"", date:"", recs:{} };
+let store = { name:"", date:"", recs:{}, events:[], page:0 };
 
 function k(cid, ref){ return cid + "::" + ref; }
 
@@ -472,7 +538,9 @@ function build(){
     });
     h += `</div>`;
     card.innerHTML = h;
-    root.appendChild(card);
+    const page = document.createElement("div"); page.className="claimpage";
+    page.appendChild(card);
+    root.appendChild(page);
   });
   updateProgress();
 }
@@ -499,8 +567,8 @@ function bib(ref){
 }
 
 function roleLabel(p){
-  if(p.role==="lead") return "Main source";
-  if(p.role==="co") return "Main source";
+  if(p.role==="lead") return "Principal source";
+  if(p.role==="co") return "Secondary source";
   if(p.role==="supporter") return "Backing source";
   return "Please read";
 }
@@ -516,13 +584,19 @@ function questionsHTML(key, kind, p){
       ${optRow(key,"support",[["yes","Agree"],["no","Disagree"]])}</div>
       <textarea placeholder="Any comment (optional)" data-c="${key}" oninput="saveSoon()"></textarea>`;
   }
-  const isMain = p.role!=="supporter";
-  const cur = isMain ? "main" : "backing";
-  const dir = isMain ? ["down","Disagree &ndash; down-rate to backing"] : ["up","Disagree &ndash; up-rate to main"];
+  const tierName = p.role==="lead" ? "principal" : (p.role==="co" ? "secondary" : "backing");
+  let ratingOpts;
+  if(p.role==="supporter"){
+    ratingOpts = [["agree","Agree"],["up","Should rank higher"],["remove","Disagree &ndash; remove"],["other","Other"]];
+  } else if(p.role==="co"){
+    ratingOpts = [["agree","Agree"],["up","Should be principal"],["down","Should be backing"],["remove","Disagree &ndash; remove"],["other","Other"]];
+  } else {
+    ratingOpts = [["agree","Agree"],["down","Should rank lower"],["remove","Disagree &ndash; remove"],["other","Other"]];
+  }
   return `<div class="qblock"><div class="qlabel">1. Does this paper support the statement?</div>
       ${optRow(key,"support",[["yes","Supports"],["part","Partly"],["no","Does not support"]])}</div>
-    <div class="qblock"><div class="qlabel">2. This paper is rated as a ${cur} source. Is that rating right?</div>
-      ${optRow(key,"rating",[["agree","Agree"],dir,["remove","Disagree &ndash; remove"],["other","Other"]])}
+    <div class="qblock"><div class="qlabel">2. This paper is rated as a ${tierName} source. Is that the right weight?</div>
+      ${optRow(key,"rating",ratingOpts)}
       <div class="rating-other" id="ro-${key}" style="display:none"><input type="text" class="ro-input" data-ro="${key}" placeholder="Other &ndash; please specify" oninput="saveSoon()"></div></div>
     <textarea placeholder="Any other comment (optional)" data-c="${key}" oninput="saveSoon()"></textarea>`;
 }
@@ -599,7 +673,7 @@ function restore(){
   if(!raw) return;
   try{
     const s = JSON.parse(raw);
-    store = s; store.recs = s.recs || {};
+    store = s; store.recs = s.recs || {}; store.events = s.events || []; store.page = s.page || 0;
     if(s.name) document.getElementById("rev-name").value = s.name;
     if(s.date) document.getElementById("rev-date").value = s.date;
     Object.keys(store.recs).forEach(key=>{
@@ -655,7 +729,8 @@ function exportLog(){
     reviewer:{ name:store.name, date:store.date },
     generated:new Date().toISOString(),
     completion:{ reviewed:done, total:total, complete: done===total },
-    claims:claims, content_decision_items:content
+    claims:claims, content_decision_items:content,
+    activity_events:(store.events||[])
   };
   const stamp = new Date().toISOString().slice(0,10).replace(/-/g,"");
   const blob = new Blob([JSON.stringify(log,null,2)],{type:"application/json"});
@@ -671,7 +746,7 @@ function exportLog(){
 function clearAll(){
   if(!confirm("Clear all your answers in this browser? This cannot be undone.")) return;
   try{ localStorage.removeItem(KEY); }catch(e){}
-  store = { name:"", date:"", recs:{} };
+  store = { name:"", date:"", recs:{}, events:[], page:0 };
   location.reload();
 }
 
@@ -685,11 +760,150 @@ function clearAll(){
   });
 })();
 
+/* ---- one-claim-per-page navigation, gate and resume -------------------- */
+function pageEls(){ return document.querySelectorAll("#claims .claimpage"); }
+function todayISO(){ var d=new Date(), p=function(n){return String(n).padStart(2,"0");};
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+function hasProgress(){ try{ return !!(store && store.recs && Object.keys(store.recs).length>0); }catch(e){ return false; } }
+function doneCount(){ var n=0; try{ Object.keys(store.recs).forEach(function(kk){ if(store.recs[kk]&&store.recs[kk].support) n++; }); }catch(e){} return n; }
+
+function showPage(i){
+  var ps = pageEls(); if(!ps.length) return;
+  if(i<0) i=0; if(i>=ps.length) i=ps.length-1;
+  ps.forEach(function(p,idx){ p.classList.toggle("active", idx===i); });
+  store.page = i;
+  var lbl = document.getElementById("pg-label");
+  if(lbl) lbl.innerHTML = "Statement <b>"+(i+1)+"</b> of "+ps.length;
+  var f = document.getElementById("pg-fill"); if(f) f.style.width = Math.round((i+1)/ps.length*100)+"%";
+  document.querySelectorAll(".pbtn.prev").forEach(function(b){ b.disabled = (i===0); });
+  document.querySelectorAll(".pbtn.next").forEach(function(b){ b.disabled = (i===ps.length-1); });
+  try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){}
+  window.scrollTo({top:0, behavior:"smooth"});
+  if(window.pmTrack) pmTrack("view_statement", { claim:(CLAIMS[i]?CLAIMS[i].id:null), detail:{ index:i } });
+}
+function nextPage(){ showPage((store.page||0)+1); }
+function prevPage(){ showPage((store.page||0)-1); }
+
+function updateResumeNote(){
+  var note = document.getElementById("resume-note"), btn = document.getElementById("begin-btn");
+  if(hasProgress()){
+    note.innerHTML = "Welcome back &mdash; your answers are saved on this device (<b>"+doneCount()+"</b> of "+totalItems()+" items done). Pick up where you left off, or change any earlier answer.";
+    note.style.display="block";
+    if(btn) btn.textContent="Resume the review";
+  } else {
+    note.style.display="none";
+    if(btn) btn.textContent="Begin the review";
+  }
+}
+function beginReview(){
+  var nameEl = document.getElementById("rev-name");
+  var name = (nameEl.value||"").trim();
+  if(!name){ document.getElementById("name-err").style.display="block"; nameEl.focus(); return; }
+  document.getElementById("name-err").style.display="none";
+  var dEl = document.getElementById("rev-date"); if(dEl && !dEl.value) dEl.value = todayISO();
+  saveSoon();
+  document.getElementById("welcome").style.display="none";
+  document.getElementById("review").style.display="block";
+  document.getElementById("bar").style.display="flex";
+  showPage(store.page||0);
+  if(window.pmTrack) pmTrack("begin_review", { detail:{ resumed:hasProgress() } });
+}
+function saveAndLater(){
+  saveSoon();
+  document.getElementById("review").style.display="none";
+  document.getElementById("bar").style.display="none";
+  document.getElementById("welcome").style.display="block";
+  updateResumeNote();
+  window.scrollTo({top:0, behavior:"smooth"});
+  var s = document.getElementById("saved"); if(s){ s.textContent="progress saved"; setTimeout(function(){ s.textContent=""; }, 1500); }
+  if(window.pmTrack) pmTrack("save_and_later", { detail:{ page:store.page } });
+}
+
 document.getElementById("rev-name").addEventListener("input", saveSoon);
 document.getElementById("rev-date").addEventListener("input", saveSoon);
 build();
 restore();
 updateProgress();
+(function(){ var d=document.getElementById("rev-date"); if(d && !d.value) d.value = todayISO(); })();
+updateResumeNote();
+
+/* ---- Reviewer activity logging (Supabase, insert-only) ----------------- */
+(function(){
+  var ENDPOINT = SB_URL + "/rest/v1/pm_evidence_events";
+  var SID_KEY = "pm_evidence_check_sid", sid;
+  try{ sid = localStorage.getItem(SID_KEY); }catch(e){}
+  if(!sid){
+    sid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : "s-" + new Date().getTime() + "-" + Math.random().toString(36).slice(2);
+    try{ localStorage.setItem(SID_KEY, sid); }catch(e){}
+  }
+  var t0 = new Date().getTime();
+  function post(row){
+    try{
+      fetch(ENDPOINT, { method:"POST",
+        headers:{ "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY,
+                  "Content-Type":"application/json", "Prefer":"return=minimal" },
+        body:JSON.stringify(row), keepalive:true, mode:"cors", credentials:"omit" }).catch(function(){});
+    }catch(e){}
+  }
+  function splitKey(key){ var i=(key||"").indexOf("::");
+    return i>=0 ? { claim:key.slice(0,i), ref:key.slice(i+2) } : { claim:null, ref:(key||null) }; }
+  function track(type, opts){
+    opts = opts || {};
+    var row = { session_id:sid, reviewer_name:(store&&store.name)||null, reviewer_date:(store&&store.date)||null,
+      event_type:type, claim:opts.claim||null, paper_ref:opts.ref||null, detail:opts.detail||null,
+      page_path:location.pathname, user_agent:navigator.userAgent };
+    try{
+      store.events = store.events || [];
+      store.events.push({ t:new Date().toISOString(), type:type, claim:row.claim, ref:row.paper_ref, detail:row.detail });
+      if(store.events.length > 3000) store.events.splice(0, store.events.length - 3000);
+      try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){}
+    }catch(e){}
+    post(row);
+  }
+  window.pmTrack = track;
+
+  if(typeof window.toggle === "function"){
+    var _toggle = window.toggle;
+    window.toggle = function(key){ _toggle(key);
+      var w=document.getElementById("wrap-"+key), s=splitKey(key);
+      track(w && w.classList.contains("open") ? "expand" : "collapse", { claim:s.claim, ref:s.ref }); };
+  }
+  if(typeof window.pick === "function"){
+    var _pick = window.pick;
+    window.pick = function(key,q,val){ _pick(key,q,val); var s=splitKey(key);
+      track("rating", { claim:s.claim, ref:s.ref, detail:{ field:q, value:val } }); };
+  }
+  document.addEventListener("change", function(e){
+    var el=e.target; if(!el||!el.matches) return;
+    if(el.matches("textarea[data-c]")){ var s=splitKey(el.getAttribute("data-c"));
+      track("comment", { claim:s.claim, ref:s.ref, detail:{ length:el.value.trim().length, text:el.value.trim().slice(0,2000) } });
+    } else if(el.matches("input[data-ro]")){ var s2=splitKey(el.getAttribute("data-ro"));
+      track("rating_note", { claim:s2.claim, ref:s2.ref, detail:{ text:el.value.trim().slice(0,500) } }); }
+  }, true);
+  document.addEventListener("click", function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a[target="_blank"]') : null;
+    if(!a) return; var href=a.getAttribute("href")||""; if(!/^https?:/i.test(href)) return;
+    var wrap=a.closest?a.closest(".paper"):null, key=wrap?(wrap.id||"").replace(/^wrap-/,""):"";
+    var s=key?splitKey(key):{claim:null,ref:null};
+    track("source_click", { claim:s.claim, ref:s.ref,
+      detail:{ url:href, label:(a.textContent||"").replace(/\s+/g," ").trim().slice(0,120) } });
+  }, true);
+  var _completed=false;
+  function checkComplete(){ var total=totalItems(), done=doneCount();
+    if(!_completed && total>0 && done>=total){ _completed=true; track("completion", { detail:{ reviewed:done, total:total } }); } }
+  if(typeof window.updateProgress === "function"){
+    var _up = window.updateProgress; window.updateProgress = function(){ _up(); checkComplete(); }; }
+  if(typeof window.exportLog === "function"){
+    var _export = window.exportLog; window.exportLog = function(){ track("export", null); return _export.apply(this, arguments); }; }
+  track("session_start", { detail:{ referrer:document.referrer||null, screen:(screen.width+"x"+screen.height) } });
+  document.addEventListener("visibilitychange", function(){
+    track(document.visibilityState==="hidden"?"hidden":"visible", { detail:{ seconds:Math.round((new Date().getTime()-t0)/1000) } }); });
+  var _endSent=false;
+  window.addEventListener("pagehide", function(){ if(_endSent) return; _endSent=true;
+    track("session_end", { detail:{ seconds:Math.round((new Date().getTime()-t0)/1000), reviewed:doneCount(), total:totalItems() } }); });
+  checkComplete();
+})();
 </script>
 </body>
 </html>
